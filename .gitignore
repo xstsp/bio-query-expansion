@@ -1,0 +1,6 @@
+*.swp
+*.pyc
+.project
+.pydevproject
+.idea
+sample_abstract_data/

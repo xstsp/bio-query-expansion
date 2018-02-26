@@ -1,0 +1,28 @@
+{
+  "questions": [
+    {
+      "body": "Which two drugs are included in the Harvoni pill?",
+      "documents": [
+        "http://www.ncbi.nlm.nih.gov/pubmed/27276081",
+        "http://www.ncbi.nlm.nih.gov/pubmed/27480956",
+        "http://www.ncbi.nlm.nih.gov/pubmed/27606041",
+        "http://www.ncbi.nlm.nih.gov/pubmed/25837989",
+        "http://www.ncbi.nlm.nih.gov/pubmed/25859119"
+      ],
+      "type": "list",
+      "id": "5896deff78275d0c4a000013"
+    },
+    {
+      "body": "What symptoms characterize the Muenke syndrome?",
+      "documents": [
+        "http://www.ncbi.nlm.nih.gov/pubmed/176081",
+        "http://www.ncbi.nlm.nih.gov/pubmed/180956",
+        "http://www.ncbi.nlm.nih.gov/pubmed/206041",
+        "http://www.ncbi.nlm.nih.gov/pubmed/237989",
+        "http://www.ncbi.nlm.nih.gov/pubmed/259119"
+      ],
+      "type": "list",
+      "id": "582799999999000013"
+    }
+  ]
+}
