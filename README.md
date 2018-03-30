@@ -14,12 +14,27 @@ To achieve this, we need to define three discrete and independent phases:
 ## Vocabulary creation
 ```model/vocabulary-31.py```
 
-Creates vocabulary of special terms from elasticsearch docs and stores in Redis.
+Creates a new vocabulary of special terms from elasticsearch docs and stores in Redis.
+
+The existing vocabulary (redis dump) can be found here: https://github.com/xstsp/bio-exp-storage/blob/master/dump.rdb.gz
+
+To use this dump:
+* Download the file and unzip it using ```sudo gunzip dump.rdb.gz```.
+* Copy dump.rdb in ```/var/lib/redis/```
+* Start redis server
+
 
 ## Model training
 ```model/model_creation.py```
 
 Trains word2vec model using Gensim. Sentences already replaced with vocabulary terms, come from local files.
+A sample trained model is available here (BIG FILE- 130MB): https://github.com/xstsp/bio-exp-storage/blob/master/trained_model.tar.gz
+
+To use this file:
+* Download and run ```tar -xvzf trained_model.tar.gz```
+* Move the files in *trained_models/*
+* Check that ```PROD_MODEL = 'prod_model'  ``` in *conf.py*
+
 
 ## Question expansion
 ```api/controllers.py```
