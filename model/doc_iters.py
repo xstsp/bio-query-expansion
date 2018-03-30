@@ -53,11 +53,27 @@ class FileSystemTerms:
     """
     Implements iterator which returns sentences from local filesystem
     """
-    def __init__(self):
-        self.file_names = ['/home/user/thesis/abstracts/abstracts_chunk_1000000']
+    def __init__(self, file_name):
+        self.file_names = [file_name]
 
     def __iter__(self):
         for doc in self.file_names:
             for i, tex in enumerate(json.load(open(doc, 'r'))):
                 yield tex
 
+
+class ListFromFile:
+    def __init__(self, file_names):
+        self.files = file_names
+
+    def __iter__(self):
+        for doc in self.files:
+            with open(doc, 'rb') as from_file:
+                while 1:
+                    try:
+                        yield pickle.load(from_file)
+                    except EOFError:
+                        break
+                    except pickle.UnpicklingError as e:
+                        print(e, 'file: {}'.format(doc))
+                        break

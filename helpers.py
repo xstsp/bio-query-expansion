@@ -11,6 +11,8 @@ import requests
 import redis
 import re
 import itertools
+import math
+import multiprocessing
 
 
 class Vocabulary:
@@ -49,13 +51,13 @@ def replace_text_from_voc(words):
 
     # get the longest match - start from lengthiest ngram
     # len of words is big, 10 is enough
-    max_range = len(words) if len(words) > 10 else 10
-
+    max_range = 10 if len(words) > 10 else len(words)
     for n_size in range(max_range, 1, -1):
         # create unique ngrams
         ngrams = {w for w in nltk.ngrams(words, n_size)}
         # transform ngram tuples to strings of words
         r_get_list = [' '.join([j for j in ngram]) for ngram in ngrams]
+        del ngrams
         # get mappings from vocabulary
         try:
             r_res = redis_con.hmget(con.VOC_NAME, r_get_list)
@@ -65,10 +67,13 @@ def replace_text_from_voc(words):
         # at least one term found in redis vocabulary
         if any(r_res):
             replace = {k[0]: k[1] for k in zip(r_get_list, r_res) if k[1]}
-
-            temp = "|".join(replace.keys())
-            pattern = re.compile(temp)
-            text = pattern.sub(lambda m: replace[m.group(0)], text)
+            del r_get_list
+            del r_res
+            # temp = "|".join(replace.keys())
+            # pattern = re.compile(temp)
+            # text = pattern.sub(lambda m: replace[m.group(0)], text)
+            for k, v in replace.items():
+                text = text.replace(k, v)
     return [w for w in text.split()]
 
 
@@ -96,6 +101,11 @@ def get_trained_model(model_type):
 
 # load model on startup
 g_model = get_trained_model(con.EXPANDED)
+
+if g_model:
+    print('model loaded')
+else:
+    print('not loaded')
 
 
 def redis_connect():
@@ -186,46 +196,9 @@ def get_similar_from_model(words):
     return final_list, avg_similarity
 
 
-def query_search(query, scenario):
-    # TODO: add celery tasks to support multiple queries
-
-    qwords = sentence_tokenizer(query)
-    meta = dict()
-    # keep the query as key for metadata
-    q_id = '_'.join(qwords)
-    meta['orig_count'] = len(qwords)
-
-    # data = mongo_scores.find_one({'q_id': q_id})
-    # if data:
-    #     # print('found in cache!')
-    #     res = dict({'q_id': q_id,
-    #                 'documents': data['docs'],
-    #                 'meta': data['meta']})
-    #     return res
-
-    explosion = []
-
-    if scenario != con.ELK:
-        xquery_gen, meta['avg_similarity'] = expand_query(qwords, scenario)
-        if con.EXTRA == 'explosion':
-            for xq in xquery_gen:
-                # stemming might be necessary here due to many generated phrases
-                explosion.append(' '.join([i for i in xq]))
-        else:
-            for xq in xquery_gen:
-                explosion.extend(xq)
-    else:
-        # explosion.append(' '.join(qwords))
-        # consider the original query instead of split words
-        explosion.append(query)
-
-    logging.info(explosion)
-    meta['explosion_size'] = len(explosion)
-    logging.info(meta['explosion_size'])
-
+def get_from_elastic(in_list):
     logging.info('searching elastic...')
-
-    es = es_search.SearchElastic(explosion)
+    es = es_search.SearchElastic(in_list)
     try:
         es_res = es.run_search()
     except Exception as e:
@@ -237,16 +210,117 @@ def query_search(query, scenario):
     for i in range(50):
         try:
             # add better handling
-            res_docs.append(es_res[u'hits'][u'hits'][i]['_source']['pmid'])
+            res_docs.append((es_res[u'hits'][u'hits'][i]['_source']['pmid'],
+                             es_res[u'hits'][u'hits'][i]['_score']))
         except:
             logging.info('Finished early...')
             break
+    return res_docs
+
+
+class MultiElastic(object):
+    def __init__(self, big_list):
+        # use all cores
+        self.jobs = 5
+        self.list = big_list
+
+    def parallelize(self):
+        pool = multiprocessing.Pool(self.jobs)
+        # logging.info("Children processes running : {}".format(multiprocessing.active_children()))
+        try:
+            for output in pool.imap(get_from_elastic, self.list, chunksize=2):
+                yield output
+        except MemoryError as e:
+            pool.close()
+            pool.join()
+            logging.info("Out of memory - exited - {}".format(e))
+
+        except Exception as e:
+            logging.error(e)
+        finally:
+            pool.close()
+            pool.join()
+            logging.info("All processes joined successfully")
+
+
+def query_search(query, scenario):
+    # TODO: add celery tasks to support multiple queries
+    # for query in queries:
+    qwords = sentence_tokenizer(query)
+    print(qwords)
+    meta = dict()
+    # keep the query as key for metadata
+    q_id = '_'.join(qwords)
+    meta['orig_count'] = len(qwords)
+
+    explosion = []
+
+    if scenario != con.ELK:
+        xquery_gen, meta['avg_similarity'] = expand_query(qwords, scenario)
+        # meta['xquery'] = xquery
+        if con.EXTRA == 'explosion':
+            for xq in xquery_gen:
+                # logging.info(xq)
+                explosion.append(' '.join([i for i in xq]))
+        else:
+            for xq in xquery_gen:
+                explosion.extend(xq)
+    else:
+        #explosion.append(' '.join(qwords))
+        explosion.append(query)
+
+    logging.info(explosion)
+    meta['explosion_size'] = len(explosion)
+    logging.info(meta['explosion_size'])
+
+    size = 80
+    # need to break queries into batches
+    if len(explosion) > size:
+        res_docs = get_batches_from_elastic(explosion, size)
+    else:
+        res_docs = get_single_from_elastic(explosion)
 
     res = dict({'q_id': q_id,
                 'documents': res_docs,
                 'meta': meta})
-    # mongo_scores.insert_one(res)
+
     return res
+
+
+def get_single_from_elastic(lis):
+    return [i[0] for i in get_from_elastic(lis)]
+
+
+def get_batches_from_elastic(lista, size):
+    logging.info('Batch mode: {}'.format(len(lista)))
+    split = list_to_batches(lista, size)
+    logging.info('Split to {} batches'.format(len(split)))
+    full_ret = []
+    me = MultiElastic(split)
+    for batch in me.parallelize():
+        logging.info('extending: {}'.format(batch))
+        full_ret.extend(batch)
+    # rank all results
+    sfull = sorted(full_ret, key=lambda x: x[1], reverse=True)
+    rem_dups(sfull)
+    return [i[0] for i in sfull[:50]]
+
+
+def list_to_batches(ll, size):
+    batches = math.ceil(len(ll) / size)
+    parts = []
+    for i in range(batches):
+        start = i * size
+        end = start + size
+        parts.append(ll[start:end])
+        # print(parts)
+    return parts
+
+
+def rem_dups(l):
+    for item in l:
+        for z in reversed([i for i, x in enumerate(l) if x[0] == item[0]][1:]):
+            l.pop(z)
 
 
 def search_bioxq_http(query, scenario):

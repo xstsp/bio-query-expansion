@@ -10,6 +10,7 @@ TRAINED_MODELS_PATH = os.path.join(ROOT_DIR, 'trained_models')
 TEST_FILES_PATH = os.path.join(ROOT_DIR, 'test_files')
 ABSTRACTS_PATH = os.path.join(ROOT_DIR, 'sample_abstract_data')
 EVALUATION_PATH = os.path.join(ROOT_DIR, 'evaluation')
+TEST_REP = os.path.join(ROOT_DIR, 'test_rep')
 # punctuation = """!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"""
 PUNCT = re.compile("|".join([re.escape(i) for i in string.punctuation]))
 
@@ -43,7 +44,12 @@ ELK = 'elk'
 BIOASQ = 'bio'
 
 SCENARIO = EXPANDED
+#SCENARIO = ELK
+
 EXTRA = 'explosion'
+#EXTRA = None
+
+MAX_ID = 27957702
 
 sys.path.extend([ROOT_DIR])
 

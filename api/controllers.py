@@ -37,5 +37,40 @@ def validate_input(view_function):
 @api.route('/search', methods=['POST'])
 @validate_input
 def read_query(*args):
-    res = query_search(query=args[0], scenario=args[1])
+    query = args[0]
+    scenario = args[1]
+    res = query_search(query, scenario)
     return jsonify(res)
+
+'''
+@api.route('/search-elk', methods=['POST'])
+def search_elk():
+    input_data = request.get_json(silent=True, force=True)
+    # queries = input_data.get("query")
+    if not input_data:
+        res = {'error': 'No input data'}
+        return jsonify(res)
+    query = input_data.get("query")
+
+    docs, meta = query_search(query)
+    res = dict()
+    res['docs'] = docs
+    res['meta'] = meta
+    return jsonify(res)
+
+
+@api.route('/search-bio', methods=['POST'])
+def search_elk():
+    input_data = request.get_json(silent=True, force=True)
+    # queries = input_data.get("query")
+    if not input_data:
+        res = {'error': 'No input data'}
+        return jsonify(res)
+    query = input_data.get("query")
+
+    docs, meta = query_search(query)
+    res = dict()
+    res['docs'] = docs
+    res['meta'] = meta
+    return jsonify(res)
+'''
